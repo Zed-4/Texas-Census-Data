@@ -1,0 +1,28 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  image: docker:20.10.18
+  services:
+    - docker:20.10.18-dind
+  tags:
+    - mellowship-dev-texas-census-do-k8s
+  script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE:latest
+
+deploy:
+  stage: deploy
+  image: alpine/helm:3.9.4
+  environment:
+    name: production
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  tags:
+    - mellowship-dev-texas-census-do-k8s
+  script:
+    - helm upgrade mellowship-dev-texas-census ./k8s/charts/mellowship-dev-texas-census --install --set-string image.tag=${CI_COMMIT_SHORT_SHA} --namespace default --timeout 30m0s --kube-context mastery-sh/mastery-sh-k8s:mastery-sh
